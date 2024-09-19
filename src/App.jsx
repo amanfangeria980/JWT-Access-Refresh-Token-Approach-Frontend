@@ -1,15 +1,22 @@
-import React, { useState } from "react";
+// App.jsx
+import React, { useState, useEffect } from "react";
 import axios from "axios";
+import { Routes, Route, useNavigate } from "react-router-dom";
+import PostOperations from "./PostOperations";
 
 function App() {
     const [username, setUsername] = useState("");
     const [password, setPassword] = useState("");
     const [posts, setPosts] = useState([]);
     const [error, setError] = useState("");
+    const [isLoggedIn, setIsLoggedIn] = useState(false);
+
+    const navigate = useNavigate();
 
     // Set the access token in sessionStorage
     const setAccessToken = (token) => {
         sessionStorage.setItem("accessToken", token);
+        setIsLoggedIn(true);
     };
 
     const getAccessToken = () => {
@@ -19,6 +26,8 @@ function App() {
     // Handle login
     const handleLogin = async (e) => {
         e.preventDefault();
+        if (isLoggedIn) return; // Prevent multiple login attempts
+
         try {
             const response = await axios.post(
                 `${import.meta.env.VITE_BACKEND_URL}/login`,
@@ -27,6 +36,7 @@ function App() {
             );
             setAccessToken(response.data.accessToken);
             setError("");
+            navigate("/posts"); // Ensure navigation after successful login
         } catch (err) {
             setError("Login failed. Please check your credentials.");
         }
@@ -82,46 +92,72 @@ function App() {
                 withCredentials: true,
             });
             sessionStorage.removeItem("accessToken");
-            setError("");
+            setIsLoggedIn(false); // Update login state
             setPosts([]);
+            setError("");
+            navigate("/");
         } catch (err) {
             setError("Failed to log out");
         }
     };
 
+    useEffect(() => {
+        if (getAccessToken()) {
+            setIsLoggedIn(true);
+        }
+    }, []);
+
     return (
-        <div className="App">
-            <h1>Auth System</h1>
-            {error && <p style={{ color: "red" }}>{error}</p>}
-            {!getAccessToken() ? (
-                <form onSubmit={handleLogin}>
-                    <input
-                        type="text"
-                        placeholder="Username"
-                        value={username}
-                        onChange={(e) => setUsername(e.target.value)}
+        <Routes>
+            <Route
+                path="/"
+                element={
+                    <div className="App">
+                        <h1>Auth System</h1>
+                        {error && <p style={{ color: "red" }}>{error}</p>}
+                        {!isLoggedIn ? (
+                            <form onSubmit={handleLogin}>
+                                <input
+                                    type="text"
+                                    placeholder="Username"
+                                    value={username}
+                                    onChange={(e) =>
+                                        setUsername(e.target.value)
+                                    }
+                                />
+                                <input
+                                    type="password"
+                                    placeholder="Password"
+                                    value={password}
+                                    onChange={(e) =>
+                                        setPassword(e.target.value)
+                                    }
+                                />
+                                <button type="submit">Login</button>
+                            </form>
+                        ) : (
+                            <PostOperations
+                                fetchPosts={fetchPosts}
+                                refreshToken={refreshToken}
+                                handleLogout={handleLogout}
+                                posts={posts}
+                            />
+                        )}
+                    </div>
+                }
+            />
+            <Route
+                path="/posts"
+                element={
+                    <PostOperations
+                        fetchPosts={fetchPosts}
+                        refreshToken={refreshToken}
+                        handleLogout={handleLogout}
+                        posts={posts}
                     />
-                    <input
-                        type="password"
-                        placeholder="Password"
-                        value={password}
-                        onChange={(e) => setPassword(e.target.value)}
-                    />
-                    <button type="submit">Login</button>
-                </form>
-            ) : (
-                <>
-                    <button onClick={fetchPosts}>Fetch Posts</button>
-                    <button onClick={refreshToken}>Refresh Token</button>
-                    <button onClick={handleLogout}>Logout</button>
-                    <ul>
-                        {posts.map((post, index) => (
-                            <li key={index}>{post.title}</li>
-                        ))}
-                    </ul>
-                </>
-            )}
-        </div>
+                }
+            />
+        </Routes>
     );
 }
 
